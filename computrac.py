@@ -6,6 +6,7 @@ import numpy as np
 from pandas import DataFrame
 import pandas as pd
 
+
 def strip_null(c_string, null=b'\x00'):
     """Strip everything past the first null in a string
 
@@ -16,15 +17,18 @@ def strip_null(c_string, null=b'\x00'):
     @param null: A sentinel character (or string) used to signal end of string.
     """
     end_idx = c_string.find(null)
-    return(c_string[0:end_idx])
+    return c_string[0:end_idx]
 
 
-def date2string(dt):
-    """Returns a string YYYY-MM-DD given a datetime.date object"""
-    return("%0.4d-%0.2d-%0.2d" % (dt.year, dt.month, dt.day))
+def date2string(dt: datetime.date) -> str:
+    """Returns a string YYYY-MM-DD given a datetime.date object
+
+    @param dt: a datetime.date object
+    """
+    return "%0.4d-%0.2d-%0.2d" % (dt.year, dt.month, dt.day)
 
 
-def fmsfloat2date(ms_date):
+def fmsfloat2date(ms_date: float) -> datetime.date:
     """Convert a metastock format date float into a datetime.date
 
     Metastock stores dates as a 4 byte float.  This function returns a
@@ -41,7 +45,7 @@ def fmsfloat2date(ms_date):
         return datetime.date(yyyy, mm, dd)
 
 
-def fmsfloat2datetime(ms_date):
+def fmsfloat2datetime(ms_date) -> datetime.date:
     """Convert a metastock format date float into a datetime.datetime
 
     Metastock stores dates as a 4 byte float.  This function returns a
@@ -53,12 +57,12 @@ def fmsfloat2datetime(ms_date):
     mm = (yyyymmdd - (yyyy*10000))/100
     dd = yyyymmdd % 100
     if (1900 == yyyy) and (0 == mm) and (0 == dd):
-        return datetime.date(1900,1,1)
+        return datetime.date(1900, 1, 1)
     else:
         return datetime.date(yyyy, mm, dd)
 
 
-def fmsbin2ieee(ms_bin):
+def fmsbin2ieee(ms_bin) -> float:
 
     """Convert an MS Basic format float to a IEEE format float
 
@@ -135,14 +139,21 @@ class ComputracDir(object):
     """
 
     def __init__(self, root_dir='', emaster_name='emaster'):
+        self.num_files = 0
+        self.max_file_num = 0
+
+        self._ticker_refdata = {}
+        self._name_refdata = {}
+        self._emaster_files = []
+
         self.reset_refdata()
         if '' != root_dir:
             self.open_base_directory(root_dir, emaster_name)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.tickers.__str__()
 
-    def reset_refdata(self):
+    def reset_refdata(self) -> None:
         """Remove all data read from emaster files"""
         self._ticker_refdata = {}
         self._name_refdata = {}
@@ -154,14 +165,14 @@ class ComputracDir(object):
         @param root_dir: FQ name of the root directory
         @param emaster_name: Name of emaster files, usually emaster
         """
-        if(not os.path.isdir(root_dir)):
+        if not os.path.isdir(root_dir):
             raise Exception("Directory %s does not exist" % root_dir)
 
         matches = []
         for root, dirnames, filenames in os.walk(root_dir):
-            for filename in fnmatch.filter(filenames, 'emaster'):
+            for filename in fnmatch.filter(filenames, emaster_name):
                 matches.append(os.path.join(root, filename))
-        return(matches)
+        return matches
 
     def read_emaster_file(self, emaster_name):
         """Open and read the emaster file and cache data in it
@@ -169,10 +180,10 @@ class ComputracDir(object):
         @param emaster_name: FQ Name of the emaster format file
         """
 
-        if(not os.path.isfile(emaster_name)):
+        if not os.path.isfile(emaster_name):
             raise Exception("File %s does not exist." % emaster_name)
 
-        if(emaster_name in self._emaster_files):
+        if emaster_name in self._emaster_files:
             raise Exception("%s has already been read" % emaster_name)
 
         header_fmt = "H H 188x"
@@ -214,15 +225,12 @@ class ComputracDir(object):
 
         with open(emaster_name, 'rb') as emaster:
             buf = emaster.read(header_len)
-            self.numFiles, self.maxFileNum = struct.unpack(header_fmt, buf)
+            self.num_files, self.max_file_num = struct.unpack(header_fmt, buf)
             buf = emaster.read(record_len)
             while len(buf) > 0:
                 assert (len(buf) == record_len)
-                fNum, num_fld, flag, symbol, name, freq, first_dt, last_dt, full_name =\
-                        struct.unpack(record_fmt, buf)
-                filename = os.path.join(
-                                os.path.dirname(emaster_name),
-                                'F%d.dat' % fNum)
+                f_num, num_fld, flag, symbol, name, freq, first_dt, last_dt, full_name = struct.unpack(record_fmt, buf)
+                filename = os.path.join(os.path.dirname(emaster_name), 'F%d.dat' % f_num)
                 flag = flag.decode()
                 symbol = strip_null(symbol).decode()
                 name = strip_null(name).decode()
@@ -233,16 +241,12 @@ class ComputracDir(object):
                     name = strip_null(full_name).decode()
                 record = (symbol, name, first_dt, last_dt, freq, filename, num_fld,
                           flag, emaster_name)
-                if(symbol in self._ticker_refdata):
+                if symbol in self._ticker_refdata:
                     old_record = self._ticker_refdata[symbol]
-                    raise Exception(
-                        "Duplicate ticker from dir %s, new dir %s" %
-                            (old_record[5], filename) )
-                if(name in self._name_refdata):
+                    raise Exception("Duplicate ticker from dir %s, new dir %s" % (old_record[5], filename))
+                if name in self._name_refdata:
                     old_record = self._name_refdata[name]
-                    raise Exception(
-                        "Duplicate name from dir %s, new dir %s" %
-                            (old_record[5], filename) )
+                    raise Exception("Duplicate name from dir %s, new dir %s" % (old_record[5], filename))
                 self._ticker_refdata[symbol] = record
                 self._name_refdata[name] = record
                 buf = emaster.read(record_len)
@@ -264,12 +268,12 @@ class ComputracDir(object):
     @property
     def tickers(self):
         """Return all tickers for which we have data"""
-        return(np.sort(list(self._ticker_refdata.keys())))
+        return np.sort(list(self._ticker_refdata.keys()))
 
     @property
     def names(self):
         """Return all asset names for which we have data"""
-        return(np.sort(list(self._name_refdata.keys())))
+        return np.sort(list(self._name_refdata.keys()))
 
     @property
     def emaster_files(self):
@@ -308,9 +312,9 @@ class ComputracDir(object):
         header_len = struct.calcsize(header_fmt)
         record_len = struct.calcsize(record_fmt)
         assert(header_len == record_len)
-        (symbol, name, firstDt, lastDt, freq, fileName, numFld, flag, masterFile) =\
-                self.get_reference_data(asset_id)
-        with open(fileName, 'rb') as datafile:
+        (symbol, name, first_dt, last_dt, freq, file_name, num_fld, flag, master_file) =\
+            self.get_reference_data(asset_id)
+        with open(file_name, 'rb') as datafile:
             buf = datafile.read(header_len)
             (junk, num_records) = struct.unpack(header_fmt, buf)
             ohlc_data = np.empty(shape=(num_records-1),
@@ -336,7 +340,7 @@ class ComputracDir(object):
                 rec_num += 1
                 buf = datafile.read(record_len)
 
-        return(ohlc_data)
+        return ohlc_data
 
     def __getitem__(self, asset_id):
         return self.get_dataframe(asset_id)
@@ -347,15 +351,15 @@ class ComputracDir(object):
         """
  
         raw_data = self.get_raw_data(asset_id)
-        df  = DataFrame(data={'open':     raw_data['open'],
-                              'high':     raw_data['high'],
-                              'low':      raw_data['low'],
-                              'close':    raw_data['close'],
-                              'volume':   raw_data['volume'],
-                              'open_int': raw_data['open_interest']},
-                        columns=['open', 'high', 'low', 'close', 'volume', 'open_int'],
-                        index=pd.DatetimeIndex(raw_data['date']))
-        return(df)
+        df = DataFrame(data={'open':     raw_data['open'],
+                             'high':     raw_data['high'],
+                             'low':      raw_data['low'],
+                             'close':    raw_data['close'],
+                             'volume':   raw_data['volume'],
+                             'open_int': raw_data['open_interest']},
+                       columns=['open', 'high', 'low', 'close', 'volume', 'open_int'],
+                       index=pd.DatetimeIndex(raw_data['date']))
+        return df
 
 
 
