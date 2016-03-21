@@ -318,7 +318,7 @@ class ComputracDir(object):
             buf = datafile.read(header_len)
             (junk, num_records) = struct.unpack(header_fmt, buf)
             ohlc_data = np.empty(shape=(num_records-1),
-                                 dtype=[('date',          'S10'),
+                                 dtype=[('date',          'M8[D]'),
                                         ('open',          'float'),
                                         ('high',          'float'),
                                         ('low',           'float'),
@@ -330,7 +330,7 @@ class ComputracDir(object):
             while len(buf) > 0:
                 assert(len(buf) == record_len)
                 ohlc_data[rec_num] = (
-                    date2string(fmsfloat2date(fmsbin2ieee(buf[0:4]))),
+                    np.datetime64(fmsfloat2date(fmsbin2ieee(buf[0:4])), 'D'),
                     fmsbin2ieee(buf[4:8]),
                     fmsbin2ieee(buf[8:12]),
                     fmsbin2ieee(buf[12:16]),
@@ -356,8 +356,8 @@ class ComputracDir(object):
                              'low':      raw_data['low'],
                              'close':    raw_data['close'],
                              'volume':   raw_data['volume'],
-                             'open_int': raw_data['open_interest']},
-                       columns=['open', 'high', 'low', 'close', 'volume', 'open_int'],
+                             'open_interest': raw_data['open_interest']},
+                       columns=['open', 'high', 'low', 'close', 'volume', 'open_interest'],
                        index=pd.DatetimeIndex(raw_data['date']))
         return df
 
