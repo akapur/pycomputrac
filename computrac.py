@@ -143,7 +143,7 @@ class ComputracDir(object):
         self.max_file_num = 0
 
         self._ticker_refdata = {}
-        self._name_refdata = {}
+        self._name_tickers = {}
         self._emaster_files = []
 
         self.reset_refdata()
@@ -156,7 +156,7 @@ class ComputracDir(object):
     def reset_refdata(self) -> None:
         """Remove all data read from emaster files"""
         self._ticker_refdata = {}
-        self._name_refdata = {}
+        self._name_tickers = {}
         self._emaster_files = [] 
 
     def find_emaster_files(self, root_dir, emaster_name='emaster'):
@@ -242,13 +242,17 @@ class ComputracDir(object):
                 record = (symbol, name, first_dt, last_dt, freq, filename, num_fld,
                           flag, emaster_name)
                 if symbol in self._ticker_refdata:
+                    print("Duplicate Symbol Found: %s" % symbol)
                     old_record = self._ticker_refdata[symbol]
-                    raise Exception("Duplicate ticker from dir %s, new dir %s" % (old_record[5], filename))
-                if name in self._name_refdata:
-                    old_record = self._name_refdata[name]
-                    raise Exception("Duplicate name from dir %s, new dir %s" % (old_record[5], filename))
-                self._ticker_refdata[symbol] = record
-                self._name_refdata[name] = record
+                    print(record)
+                    print(old_record)
+                    raise RuntimeError("Duplicate ticker from dir %s, new dir %s" % (old_record[5], filename))
+                else:
+                    self._ticker_refdata[symbol] = record
+                if name in self._name_tickers:
+                    self._name_tickers[name].append(symbol)
+                else:
+                    self._name_tickers[name] = [symbol]
                 buf = emaster.read(record_len)
             self._emaster_files.append(emaster_name)
 
@@ -273,7 +277,7 @@ class ComputracDir(object):
     @property
     def names(self):
         """Return all asset names for which we have data"""
-        return np.sort(list(self._name_refdata.keys()))
+        return np.sort(list(self._name_tickers.keys()))
 
     @property
     def emaster_files(self):
@@ -285,10 +289,22 @@ class ComputracDir(object):
         """
         if asset_id in self._ticker_refdata:
             return self._ticker_refdata[asset_id]
-        elif asset_id in self._name_refdata:
-            return self._name_refdata[asset_id]
+        elif asset_id in self._name_tickers:
+            tickers_list = self._name_tickers[asset_id]
+            if len(tickers_list) == 1:
+                return self._ticker_refdata[tickers_list[0]]
+            else:
+                multi_ticker_str = " - ".join(tickers_list)
+                raise LookupError("Multiple Tickers correspond to Name %s, Tickers: %s",
+                                   (asset_id, multi_ticker_str))
         else:
-            raise LookupError("Bad asset id %s" % asset_id)
+            raise LookupError("Asset ID: %s does not correspond to any ticker or name." % asset_id)
+
+    def get_tickers(self, name):
+        if name in self._name_tickers:
+            return self._name_tickers.get(name)
+        else:
+            raise LookupError("No asset with name %s found" % name)
 
     def get_raw_data(self, asset_id):
         """Return the underlying data given the name or ticker of an asset
