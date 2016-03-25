@@ -270,6 +270,23 @@ class ComputracDir(object):
             self.read_emaster_file(emaster_name)
 
     @property
+    def catalog(self):
+        items = np.empty(shape=len(self.tickers),
+                         dtype=np.dtype([('ticker', 'S32'),
+                                         ('name', 'S256'),
+                                         ('freq', 'S1'),
+                                         ('start', 'M8[D]'),
+                                         ('end', 'M8[D]')]))
+        for idx, tkr in enumerate(self.tickers):
+            cur_rec = self.get_reference_data(tkr)
+            items[idx]['ticker'] = cur_rec[0]
+            items[idx]['name'] = cur_rec[1]
+            items[idx]['start'] = np.datetime64(cur_rec[2], 'D')
+            items[idx]['end'] = np.datetime64(cur_rec[3], 'D')
+            items[idx]['freq'] = cur_rec[4]
+        return items
+
+    @property
     def tickers(self):
         """Return all tickers for which we have data"""
         return np.sort(list(self._ticker_refdata.keys()))
