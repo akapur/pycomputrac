@@ -115,13 +115,13 @@ def fmsbin2ieee(ms_bin) -> float:
     ieee[1] = ms_bin[1]
     ieee[0] = ms_bin[0]
 
-    return struct.unpack("f", ieee)[0]
+    return struct.unpack("f", bytes(ieee))[0]
 
 
 class ComputracDir(object):
     """Provides easy access to historical market data in Metastock Format.
 
-    Abstracts away stuff necessary to read the data.  Needs an index in emaster
+    Abstracts away stuff necessary to read the data.  Needs an index in [ex]master
     format.  Reads the index and buffers it.  Reads data for each security on
     demand and returns it.  Does not buffer each security's data since this
     could in theory exceed memory available.
@@ -130,25 +130,19 @@ class ComputracDir(object):
     (also called PremiumData).  This is a specific variant of the Computrac 
     format.  This class is also designed to return data a numpy/pandas friendly
     format as opposed to generate csv files for export.
-
-    Metastock is a program for handling financial information.  Prior to 2012
-    it could read or provide data in a format initially created by Computrac.
-    However in 2012 it can only read data provided by Reuters/Datalink.  The
-    Computrac/Metastock format is used by many data analysis programs and data
-    providers.
     """
 
-    def __init__(self, root_dir='', emaster_name='emaster'):
+    def __init__(self, root_dir=''):
         self.num_files = 0
         self.max_file_num = 0
 
         self._ticker_refdata = {}
         self._name_tickers = {}
-        self._emaster_files = []
+        self._master_files = []
 
         self.reset_refdata()
         if '' != root_dir:
-            self.open_base_directory(root_dir, emaster_name)
+            self.open_base_directory(root_dir)
 
     def __str__(self) -> str:
         return self.tickers.__str__()
@@ -157,9 +151,9 @@ class ComputracDir(object):
         """Remove all data read from emaster files"""
         self._ticker_refdata = {}
         self._name_tickers = {}
-        self._emaster_files = [] 
+        self._master_files = []
 
-    def find_emaster_files(self, root_dir, emaster_name='emaster'):
+    def find_master_files(self, root_dir, emaster_name='emaster'):
         """Search the current directory and subdirs for all emaster files
 
         @param root_dir: FQ name of the root directory
@@ -183,7 +177,7 @@ class ComputracDir(object):
         if not os.path.isfile(emaster_name):
             raise Exception("File %s does not exist." % emaster_name)
 
-        if emaster_name in self._emaster_files:
+        if emaster_name in self.master_files:
             raise Exception("%s has already been read" % emaster_name)
 
         header_fmt = "H H 188x"
@@ -254,20 +248,114 @@ class ComputracDir(object):
                 else:
                     self._name_tickers[name] = [symbol]
                 buf = emaster.read(record_len)
-            self._emaster_files.append(emaster_name)
+            self._master_files.append(emaster_name)
 
-    def open_base_directory(self, root_dir, emaster_name='emaster'):
-        """Find and open all emaster files in the root dir and subdirs
+    def read_xmaster_file(self, xmaster_name):
+        """Open and read the xmaster file and cache data in it
+
+        @param xmaster_name: FQ Name of the xmaster format file
+        """
+
+        if not os.path.isfile(xmaster_name):
+            raise Exception("File %s does not exist." % xmaster_name)
+
+        if xmaster_name in self.master_files:
+            raise Exception("%s has already been read" % xmaster_name)
+
+        header_fmt = "2x 2x 6x H 2x H 2x H 130x"
+        """ The format string for package struct to read the xmaster header
+
+        There is a single line header in the xmaster file.  The format is:
+        pad - char with ascii value between 000 - 0x5D
+        pad - char with ascii value between 001 - 0xFE
+        xmChars - char[2] with value XM
+        pad - char[6]
+        totalFiles - ushort num_files in xmaster
+        pad2 - char[2]
+        totalFiles2 - ushort num_files in xmaster
+        pad3 - char[2]
+        lastFNumber - ushort with next file number to use (highest F# used)
+        padding - char[130]
+        """
+
+        record_fmt = "=x 15s 32s 14x c 2x H 13x i 20x i i i 34x"
+        """ The format string for package struct to read each xmaster record
+
+        Note that xmaster records are not aligned to proper boundaries!!!
+        There are many records in each emaster file each with format
+        onePad - char 000 - 0x01
+        symbol - char[15]
+        description - char[32]
+        pad - char[14]
+        period - char 'D', 'W', 'M' etc
+        pad2 - char[2]
+        fileFNumber - ushort File Number F#
+        pad3 - char[13]
+        firstDate - int
+        pad4 - char[20]
+        lastDate - int
+        firstTradingDate - int
+        lastDate2 - int
+        pad5 - char[34]
+        """
+
+        header_len = struct.calcsize(header_fmt)
+        record_len = struct.calcsize(record_fmt)
+        assert (header_len == record_len)
+
+        with open(xmaster_name, 'rb') as xmaster:
+            buf = xmaster.read(header_len)
+            xmst_files, xmst_files2, max_file_num = struct.unpack(header_fmt, buf)
+            assert xmst_files == xmst_files2
+            self.num_files += xmst_files
+            self.max_file_num = max_file_num
+            buf = xmaster.read(record_len)
+            while len(buf) > 0:
+                assert (len(buf) == record_len)
+                symbol, name, freq, f_num, zero, first_dt_int, first_dt_int2, zero2 = struct.unpack(record_fmt, buf)
+                assert first_dt_int == first_dt_int2
+                year = int(first_dt_int/10000)
+                month = int((first_dt_int % 10000)/100)
+                day = int(first_dt_int % 100)
+                first_dt = datetime.date(year, month, day)
+                last_dt = datetime.date(3000, 12, 31)
+                filename = os.path.join(os.path.dirname(xmaster_name), 'F%d.mwd' % f_num)
+                symbol = strip_null(symbol).decode()
+                name = strip_null(name).decode()
+                freq = freq.decode()
+                num_fld = 7
+                flag = ' '
+                record = (symbol, name, first_dt, last_dt, freq, filename, num_fld,
+                          flag, xmaster_name)
+                if symbol in self._ticker_refdata:
+                    print("Duplicate Symbol Found: %s" % symbol)
+                    old_record = self._ticker_refdata[symbol]
+                    print(record)
+                    print(old_record)
+                    raise RuntimeError("Duplicate ticker from dir %s, new dir %s" % (old_record[5], filename))
+                else:
+                    self._ticker_refdata[symbol] = record
+                if name in self._name_tickers:
+                    self._name_tickers[name].append(symbol)
+                else:
+                    self._name_tickers[name] = [symbol]
+                buf = xmaster.read(record_len)
+            self._master_files.append(xmaster_name)
+
+    def open_base_directory(self, root_dir):
+        """Find and open all emaster (and xmaster) files in the root dir and subdirs
 
         By calling this function on the root data directory you should be able
         to access all data in various metastock files in the directory and all
         subdirectories of the root data directory
         @param root_dir: The root directory which contains all Computrac data
-        @param emaster_name: The name of emaster files
         """
-        emaster_names = self.find_emaster_files(root_dir, emaster_name)
+        emaster_names = self.find_master_files(root_dir, 'emaster')
         for emaster_name in emaster_names:
             self.read_emaster_file(emaster_name)
+        xmaster_names = self.find_master_files(root_dir, 'xmaster')
+        for xmaster_name in xmaster_names:
+            self.read_xmaster_file(xmaster_name)
 
     @property
     def catalog(self):
@@ -281,7 +369,9 @@ class ComputracDir(object):
             cur_rec = self.get_reference_data(tkr)
             items[idx]['ticker'] = cur_rec[0]
             items[idx]['name'] = cur_rec[1]
+            # noinspection PyUnresolvedReferences
             items[idx]['start'] = np.datetime64(cur_rec[2], 'D')
+            # noinspection PyUnresolvedReferences
             items[idx]['end'] = np.datetime64(cur_rec[3], 'D')
             items[idx]['freq'] = cur_rec[4]
         return items
@@ -297,8 +387,8 @@ class ComputracDir(object):
         return np.sort(list(self._name_tickers.keys()))
 
     @property
-    def emaster_files(self):
-        return self._emaster_files
+    def master_files(self):
+        return self._master_files
 
     def get_reference_data(self, asset_id):
         """Get the reference data for an asset given it's name or ticker
@@ -313,7 +403,7 @@ class ComputracDir(object):
             else:
                 multi_ticker_str = " - ".join(tickers_list)
                 raise LookupError("Multiple Tickers correspond to Name %s, Tickers: %s",
-                                   (asset_id, multi_ticker_str))
+                                  (asset_id, multi_ticker_str))
         else:
             raise LookupError("Asset ID: %s does not correspond to any ticker or name." % asset_id)
 
@@ -362,6 +452,7 @@ class ComputracDir(object):
             buf = datafile.read(record_len)
             while len(buf) > 0:
                 assert(len(buf) == record_len)
+                # noinspection PyUnresolvedReferences,PyTypeChecker
                 ohlc_data[rec_num] = (
                     np.datetime64(fmsfloat2date(fmsbin2ieee(buf[0:4])), 'D'),
                     fmsbin2ieee(buf[4:8]),
