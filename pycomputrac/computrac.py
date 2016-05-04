@@ -467,7 +467,7 @@ class ComputracDir(object):
         return ohlc_data
 
     def __getitem__(self, asset_id):
-        return self.get_dataframe(asset_id)
+        return self.get_raw_data(asset_id)
 
     def get_dataframe(self, asset_id):
         """Return a pandas dataframe with price data for an asset 
