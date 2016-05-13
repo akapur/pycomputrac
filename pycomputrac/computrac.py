@@ -484,10 +484,3 @@ class ComputracDir(object):
                        columns=['open', 'high', 'low', 'close', 'volume', 'open_interest'],
                        index=pd.DatetimeIndex(raw_data['date']))
         return df
-
-
-
-
-
-
-
