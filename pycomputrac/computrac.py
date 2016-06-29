@@ -153,7 +153,7 @@ class ComputracDir(object):
         self._name_tickers = {}
         self._master_files = []
 
-    def find_master_files(self, root_dir, emaster_name='emaster'):
+    def find_files(self, root_dir, emaster_glob):
         """Search the current directory and subdirs for all emaster files
 
         @param root_dir: FQ name of the root directory
@@ -164,7 +164,7 @@ class ComputracDir(object):
 
         matches = []
         for root, dirnames, filenames in os.walk(root_dir):
-            for filename in fnmatch.filter(filenames, emaster_name):
+            for filename in fnmatch.filter(filenames, emaster_glob):
                 matches.append(os.path.join(root, filename))
         return matches
 
@@ -350,10 +350,10 @@ class ComputracDir(object):
         subdirectories of the root data directory
         @param root_dir: The root directory which contains all Computrac data
         """
-        emaster_names = self.find_master_files(root_dir, 'emaster')
+        emaster_names = self.find_files(root_dir, '[Ee][Mm][Aa][Ss][Tt][Ee][Rr]')
         for emaster_name in emaster_names:
             self.read_emaster_file(emaster_name)
-        xmaster_names = self.find_master_files(root_dir, 'xmaster')
+        xmaster_names = self.find_files(root_dir, '[Xx][Mm][Aa][Ss][Tt][Ee][Rr]')
         for xmaster_name in xmaster_names:
             self.read_xmaster_file(xmaster_name)
 
