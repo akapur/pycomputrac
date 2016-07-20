@@ -157,7 +157,7 @@ class ComputracDir(object):
         """Search the current directory and subdirs for all emaster files
 
         @param root_dir: FQ name of the root directory
-        @param emaster_name: Name of emaster files, usually emaster
+        @param emaster_glob: Name of emaster files, usually emaster
         """
         if not os.path.isdir(root_dir):
             raise Exception("Directory %s does not exist" % root_dir)
