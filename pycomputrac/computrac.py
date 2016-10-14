@@ -153,6 +153,7 @@ class ComputracDir(object):
         self._name_tickers = {}
         self._master_files = []
 
+    # noinspection PyMethodMayBeStatic
     def find_files(self, root_dir, emaster_glob):
         """Search the current directory and subdirs for all emaster files
 
