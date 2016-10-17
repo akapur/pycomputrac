@@ -1,1 +1,1 @@
-__all__ = ['computrac']
+from .computrac import ComputracDir
