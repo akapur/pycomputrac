@@ -68,7 +68,7 @@ def fmsbin2ieee(ms_bin) -> float:
 
     Given a 4 byte buffer containing a MS Basic format float return a 4 byte
     IEEE float (i.e. numpy dtype of float32
-    @param ms_bin: A byte buffer containing the Microsoft Basic format float used by Metastock
+    @param ms_bin: A byte buffer containing the Microsoft Basic format float.
 
     MS Binary Format
     byte order =>    m3 | m2 | m1 | exponent
@@ -119,17 +119,19 @@ def fmsbin2ieee(ms_bin) -> float:
 
 
 class ComputracDir(object):
-    """Provides easy access to historical market data in Metastock Format.
+    """
+    Provides easy access to historical market data in Metastock Format.
 
-    Abstracts away stuff necessary to read the data.  Needs an index in [ex]master
-    format.  Reads the index and buffers it.  Reads data for each security on
-    demand and returns it.  Does not buffer each security's data since this
-    could in theory exceed memory available.
+    Abstracts away stuff necessary to read the data.  Needs an index in
+    [ex]master format.  Reads the index and buffers it.  Reads data for each
+    security on demand and returns it.  Does not buffer each security's data
+    since this could in theory exceed memory available.
 
     This class as specifically used to read data as distributed by Norgate 
     (also called PremiumData).  This is a specific variant of the Computrac 
     format.  This class is also designed to return data a numpy/pandas friendly
     format as opposed to generate csv files for export.
+
     """
 
     def __init__(self, root_dir=''):
@@ -155,10 +157,12 @@ class ComputracDir(object):
 
     # noinspection PyMethodMayBeStatic
     def find_files(self, root_dir, emaster_glob):
-        """Search the current directory and subdirs for all emaster files
+        """
+        Search the current directory and subdirs for all emaster files
 
         @param root_dir: FQ name of the root directory
         @param emaster_glob: Name of emaster files, usually emaster
+
         """
         if not os.path.isdir(root_dir):
             raise Exception("Directory %s does not exist" % root_dir)
@@ -173,6 +177,7 @@ class ComputracDir(object):
         """Open and read the emaster file and cache data in it
 
         @param emaster_name: FQ Name of the emaster format file
+
         """
 
         if not os.path.isfile(emaster_name):
@@ -182,16 +187,19 @@ class ComputracDir(object):
             raise Exception("%s has already been read" % emaster_name)
 
         header_fmt = "H H 188x"
-        """ The format string for package struct to read the emaster header
+        """
+         The format string for package struct to read the emaster header
 
         There is a single line header in the emaster file.  The format is:
         totalFiles: USHORT = Num files listed in the emaster file
         file_num: USHORT = Last (highest) file number mentioned in file.
         188 blank spaces
+
         """
 
         record_fmt = "2x B 3x B 2x c x 21s 28s c 3x f 4x f 63x 53s "
-        """ The format string for package struct to read each emaster record
+        """
+         The format string for package struct to read each emaster record
 
         There are many records in each emaster file each with format
         2 blanks often "30"
@@ -212,6 +220,7 @@ class ComputracDir(object):
         lastDate: float = Last date for which there is data
         63 blanks: These blanks may be used for custom data
         longName: char[53] = Full name is placed here if name field was truncated
+
         """
 
         header_len = struct.calcsize(header_fmt)
@@ -224,8 +233,10 @@ class ComputracDir(object):
             buf = emaster.read(record_len)
             while len(buf) > 0:
                 assert (len(buf) == record_len)
-                f_num, num_fld, flag, symbol, name, freq, first_dt, last_dt, full_name = struct.unpack(record_fmt, buf)
-                filename = os.path.join(os.path.dirname(emaster_name), 'F%d.dat' % f_num)
+                (f_num, num_fld, flag, symbol, name, freq, first_dt, last_dt,
+                 full_name) = struct.unpack(record_fmt, buf)
+                filename = os.path.join(os.path.dirname(emaster_name),
+                                        'F%d.dat' % f_num)
                 flag = flag.decode()
                 symbol = strip_null(symbol).decode()
                 name = strip_null(name).decode()
@@ -234,14 +245,16 @@ class ComputracDir(object):
                 last_dt = fmsfloat2date(last_dt)
                 if full_name[0] != 0:
                     name = strip_null(full_name).decode()
-                record = (symbol, name, first_dt, last_dt, freq, filename, num_fld,
-                          flag, emaster_name)
+                record = (symbol, name, first_dt, last_dt, freq, filename,
+                          num_fld, flag, emaster_name)
                 if symbol in self._ticker_refdata:
                     print("Duplicate Symbol Found: %s" % symbol)
                     old_record = self._ticker_refdata[symbol]
                     print(record)
                     print(old_record)
-                    raise RuntimeError("Duplicate ticker from dir %s, new dir %s" % (old_record[5], filename))
+                    raise RuntimeError(
+                            "Duplicate ticker from dir %s, new dir %s" %
+                            (old_record[5], filename))
                 else:
                     self._ticker_refdata[symbol] = record
                 if name in self._name_tickers:
@@ -306,34 +319,39 @@ class ComputracDir(object):
 
         with open(xmaster_name, 'rb') as xmaster:
             buf = xmaster.read(header_len)
-            xmst_files, xmst_files2, max_file_num = struct.unpack(header_fmt, buf)
+            xmst_files, xmst_files2, max_file_num = struct.unpack(header_fmt,
+                                                                  buf)
             assert xmst_files == xmst_files2
             self.num_files += xmst_files
             self.max_file_num = max_file_num
             buf = xmaster.read(record_len)
             while len(buf) > 0:
                 assert (len(buf) == record_len)
-                symbol, name, freq, f_num, zero, first_dt_int, first_dt_int2, zero2 = struct.unpack(record_fmt, buf)
+                (symbol, name, freq, f_num, zero, first_dt_int, first_dt_int2,
+                 zero2) = struct.unpack(record_fmt, buf)
                 assert first_dt_int == first_dt_int2
                 year = int(first_dt_int/10000)
                 month = int((first_dt_int % 10000)/100)
                 day = int(first_dt_int % 100)
                 first_dt = datetime.date(year, month, day)
                 last_dt = datetime.date(3000, 12, 31)
-                filename = os.path.join(os.path.dirname(xmaster_name), 'F%d.mwd' % f_num)
+                filename = os.path.join(os.path.dirname(xmaster_name),
+                                        'F%d.mwd' % f_num)
                 symbol = strip_null(symbol).decode()
                 name = strip_null(name).decode()
                 freq = freq.decode()
                 num_fld = 7
                 flag = ' '
-                record = (symbol, name, first_dt, last_dt, freq, filename, num_fld,
-                          flag, xmaster_name)
+                record = (symbol, name, first_dt, last_dt, freq, filename,
+                          num_fld, flag, xmaster_name)
                 if symbol in self._ticker_refdata:
                     print("Duplicate Symbol Found: %s" % symbol)
                     old_record = self._ticker_refdata[symbol]
                     print(record)
                     print(old_record)
-                    raise RuntimeError("Duplicate ticker from dir %s, new dir %s" % (old_record[5], filename))
+                    raise RuntimeError(
+                            "Duplicate ticker from dir %s, new dir %s" %
+                            (old_record[5], filename))
                 else:
                     self._ticker_refdata[symbol] = record
                 if name in self._name_tickers:
@@ -344,17 +362,19 @@ class ComputracDir(object):
             self._master_files.append(xmaster_name)
 
     def open_base_directory(self, root_dir):
-        """Find and open all emaster (and xmaster) files in the root dir and subdirs
+        """Find and open all [ex]master files in the root dir and subdirs
 
         By calling this function on the root data directory you should be able
         to access all data in various metastock files in the directory and all
         subdirectories of the root data directory
         @param root_dir: The root directory which contains all Computrac data
         """
-        emaster_names = self.find_files(root_dir, '[Ee][Mm][Aa][Ss][Tt][Ee][Rr]')
+        emaster_names = self.find_files(root_dir,
+                                        '[Ee][Mm][Aa][Ss][Tt][Ee][Rr]')
         for emaster_name in emaster_names:
             self.read_emaster_file(emaster_name)
-        xmaster_names = self.find_files(root_dir, '[Xx][Mm][Aa][Ss][Tt][Ee][Rr]')
+        xmaster_names = self.find_files(root_dir,
+                                        '[Xx][Mm][Aa][Ss][Tt][Ee][Rr]')
         for xmaster_name in xmaster_names:
             self.read_xmaster_file(xmaster_name)
 
@@ -389,6 +409,7 @@ class ComputracDir(object):
 
     @property
     def master_files(self):
+        """The xmaster and emaster files processed."""
         return self._master_files
 
     def get_reference_data(self, asset_id):
@@ -403,12 +424,16 @@ class ComputracDir(object):
                 return self._ticker_refdata[tickers_list[0]]
             else:
                 multi_ticker_str = " - ".join(tickers_list)
-                raise LookupError("Multiple Tickers correspond to Name %s, Tickers: %s",
-                                  (asset_id, multi_ticker_str))
+                raise LookupError(
+                        "Multiple Tickers correspond to Name %s, Tickers: %s",
+                        (asset_id, multi_ticker_str))
         else:
-            raise LookupError("Asset ID: %s does not correspond to any ticker or name." % asset_id)
+            raise LookupError(
+                    "Asset ID: %s does not correspond to any ticker or name." %
+                    asset_id)
 
     def get_tickers(self, name):
+        """Return the tickers corresponding to a Name (may be > 1)."""
         if name in self._name_tickers:
             return self._name_tickers.get(name)
         else:
@@ -436,8 +461,8 @@ class ComputracDir(object):
         header_len = struct.calcsize(header_fmt)
         record_len = struct.calcsize(record_fmt)
         assert(header_len == record_len)
-        (symbol, name, first_dt, last_dt, freq, file_name, num_fld, flag, master_file) =\
-            self.get_reference_data(asset_id)
+        (symbol, name, first_dt, last_dt, freq, file_name, num_fld, flag,
+         master_file) = self.get_reference_data(asset_id)
         with open(file_name, 'rb') as datafile:
             buf = datafile.read(header_len)
             (junk, num_records) = struct.unpack(header_fmt, buf)
@@ -482,6 +507,11 @@ class ComputracDir(object):
                              'close':    raw_data['close'],
                              'volume':   raw_data['volume'],
                              'open_interest': raw_data['open_interest']},
-                       columns=['open', 'high', 'low', 'close', 'volume', 'open_interest'],
+                       columns=['open',
+                                'high',
+                                'low',
+                                'close',
+                                'volume',
+                                'open_interest'],
                        index=pd.DatetimeIndex(raw_data['date']))
         return df
