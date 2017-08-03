@@ -11,4 +11,4 @@ setup(name='pycomputrac',
       author_email='akapur@amvirk.com',
       license='GPL v2',
       packages=['pycomputrac'],
-      zip_safe=False, install_requires=['numpy', 'h5py', 'bokeh', 'pandas'])
+      zip_safe=False, install_requires=['numpy', 'h5py'])
