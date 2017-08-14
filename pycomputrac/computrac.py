@@ -3,16 +3,14 @@ import fnmatch
 import struct
 import datetime
 import numpy as np
-from pandas import DataFrame
-import pandas as pd
 
 
 def strip_null(c_string, null=b'\x00'):
     """Strip everything past the first null in a string
 
     Useful if a null terminated string is read from a binary format file
-    with a fixed width string field.  "null" may be any character (or string). 
-    The character with signals end of string is not part of the string returned. 
+    with a fixed width string field.  "null" may be any character (or string).
+    The character with signals end of string is not part of the string returned.
     @param c_string: the string to clean up.
     @param null: A sentinel character (or string) used to signal end of string.
     """
@@ -127,8 +125,8 @@ class ComputracDir(object):
     security on demand and returns it.  Does not buffer each security's data
     since this could in theory exceed memory available.
 
-    This class as specifically used to read data as distributed by Norgate 
-    (also called PremiumData).  This is a specific variant of the Computrac 
+    This class as specifically used to read data as distributed by Norgate
+    (also called PremiumData).  This is a specific variant of the Computrac
     format.  This class is also designed to return data a numpy/pandas friendly
     format as opposed to generate csv files for export.
 
@@ -380,6 +378,11 @@ class ComputracDir(object):
 
     @property
     def catalog(self):
+        """
+        A catalog of symbols available with start and end dates
+
+        :return: The catalog
+        """
         items = np.empty(shape=len(self.tickers),
                          dtype=np.dtype([('ticker', 'S32'),
                                          ('name', 'S256'),
@@ -495,23 +498,23 @@ class ComputracDir(object):
     def __getitem__(self, asset_id):
         return self.get_raw_data(asset_id)
 
-    def get_dataframe(self, asset_id):
-        """Return a pandas dataframe with price data for an asset 
-        @param asset_id: may be a ticker or an asset name
-        """
- 
-        raw_data = self.get_raw_data(asset_id)
-        df = DataFrame(data={'open':     raw_data['open'],
-                             'high':     raw_data['high'],
-                             'low':      raw_data['low'],
-                             'close':    raw_data['close'],
-                             'volume':   raw_data['volume'],
-                             'open_interest': raw_data['open_interest']},
-                       columns=['open',
-                                'high',
-                                'low',
-                                'close',
-                                'volume',
-                                'open_interest'],
-                       index=pd.DatetimeIndex(raw_data['date']))
-        return df
+    # def get_dataframe(self, asset_id):
+    #     """Return a pandas dataframe with price data for an asset
+    #     @param asset_id: may be a ticker or an asset name
+    #     """
+    #
+    #     raw_data = self.get_raw_data(asset_id)
+    #     df = DataFrame(data={'open':     raw_data['open'],
+    #                          'high':     raw_data['high'],
+    #                          'low':      raw_data['low'],
+    #                          'close':    raw_data['close'],
+    #                          'volume':   raw_data['volume'],
+    #                          'open_interest': raw_data['open_interest']},
+    #                    columns=['open',
+    #                             'high',
+    #                             'low',
+    #                             'close',
+    #                             'volume',
+    #                             'open_interest'],
+    #                    index=pd.DatetimeIndex(raw_data['date']))
+    #     return df
